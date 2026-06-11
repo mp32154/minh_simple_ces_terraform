@@ -1,3 +1,10 @@
+terraform {
+  backend "gcs" {
+    bucket = "infobot-wat-terraform"
+    prefix = "state/prod"
+  }
+}
+
 module "prod" {
   source = "../main"
 
