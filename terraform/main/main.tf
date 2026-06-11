@@ -37,3 +37,10 @@ module "agent_Root_agent" {
   depends_on = [module.toolset_list_accounts]
 }
 
+resource "google_ces_app_root_agent_association" "root_agent_assoc" {
+  project  = var.project
+  location = var.location
+  app_id   = module.app.app_id
+  agent_id = module.agent_Root_agent.agent_id
+}
+
