@@ -8,7 +8,7 @@ terraform {
 module "prod" {
   source = "../main"
 
-  project      = "prod-project-id"
+  project      = "infobot-wat"
   location     = "us"
   app_id       = "prod-app-id-todo"
   display_name = "minh simple open api prod"
