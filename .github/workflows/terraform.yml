@@ -12,24 +12,19 @@ permissions:
 
 jobs:
   terraform:
-    name: 'Terraform'
+    name: 'Terraform Dev'
     runs-on: 'ubuntu-latest'
-    environment: ${{ matrix.environment }} # Uses GitHub Environments (dev/prod) for secrets
-    strategy:
-      matrix:
-        environment: [dev, prod]
-      fail-fast: false
+    environment: dev # Target the dev GitHub Environment
 
     defaults:
       run:
-        working-directory: ./terraform/${{ matrix.environment }}
+        working-directory: ./terraform/dev
 
     steps:
     - name: Checkout
       uses: actions/checkout@v4
 
-    # Authenticate to Google Cloud
-    # This action will look for secrets in the active GitHub Environment (dev or prod)
+    # Authenticate to Google Cloud using dev secrets
     - name: Google Auth (WIF)
       id: auth-wif
       uses: google-github-actions/auth@v2
@@ -53,7 +48,7 @@ jobs:
     - name: Terraform Init
       run: terraform init
 
-    # Check formatting (optional, will not fail the build if it fails)
+    # Check formatting (optional)
     - name: Terraform Format
       run: terraform fmt -check
       continue-on-error: true
