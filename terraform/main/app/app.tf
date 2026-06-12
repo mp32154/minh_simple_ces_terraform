@@ -8,6 +8,12 @@ resource "google_ces_app" "my_app" {
     time_zone = "America/Los_Angeles"
   }
 
+  lifecycle {
+    ignore_changes = [
+      root_agent,
+    ]
+  }
+
 }
 
 output "app_id" {
