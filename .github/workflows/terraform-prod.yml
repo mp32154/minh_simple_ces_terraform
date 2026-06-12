@@ -1,0 +1,61 @@
+name: 'Terraform Prod'
+
+on:
+  push:
+    branches: [ "prod" ] # Triggers when merged to prod branch
+
+permissions:
+  contents: 'read'
+  id-token: 'write'
+
+jobs:
+  terraform:
+    name: 'Terraform Prod'
+    runs-on: 'ubuntu-latest'
+    environment: prod # Target the prod GitHub Environment for secrets
+
+    defaults:
+      run:
+        working-directory: ./terraform/prod
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # Authenticate to Google Cloud using prod secrets
+    - name: Google Auth (WIF)
+      id: auth-wif
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+        service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+      continue-on-error: true
+
+    # Fallback to Service Account Key JSON if WIF is not configured
+    - name: Google Auth (Key JSON)
+      if: steps.auth-wif.outcome == 'failure' || steps.auth-wif.outcome == 'skipped'
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    # Install Terraform CLI
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    # Initialize Terraform
+    - name: Terraform Init
+      run: terraform init
+
+    # Check formatting (optional)
+    - name: Terraform Format
+      run: terraform fmt -check
+      continue-on-error: true
+
+    # Generate Plan
+    - name: Terraform Plan
+      run: terraform plan -input=false
+
+    # Apply changes (Only on push to prod)
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
+      run: terraform apply -auto-approve -input=false
