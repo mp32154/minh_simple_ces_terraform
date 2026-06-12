@@ -2,18 +2,17 @@ name: 'Terraform Prod'
 
 on:
   push:
-    branches: [ "prod" ] # Triggers when merged to prod branch
+    branches: [ "prod" ]
 
 permissions:
   contents: 'read'
   id-token: 'write'
+  deployments: 'write' # Required for using environments with protection rules
 
 jobs:
-  terraform:
-    name: 'Terraform Prod'
+  terraform-plan:
+    name: 'Terraform Plan'
     runs-on: 'ubuntu-latest'
-    environment: prod # Target the prod GitHub Environment for secrets
-
     defaults:
       run:
         working-directory: ./terraform/prod
@@ -22,7 +21,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    # Authenticate to Google Cloud using prod secrets
+    # Authenticate to Google Cloud
     - name: Google Auth (WIF)
       id: auth-wif
       uses: google-github-actions/auth@v2
@@ -51,11 +50,61 @@ jobs:
       run: terraform fmt -check
       continue-on-error: true
 
-    # Generate Plan
+    # Generate Plan and save it to a file
     - name: Terraform Plan
-      run: terraform plan -input=false
+      run: terraform plan -input=false -out=tfplan
 
-    # Apply changes (Only on push to prod)
+    # Upload the plan file as an artifact
+    - name: Upload Plan Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: tfplan
+        path: ./terraform/prod/tfplan
+        retention-days: 1 # Only need it for the next job
+
+  terraform-apply:
+    name: 'Terraform Apply'
+    needs: terraform-plan # Must wait for the plan job to succeed
+    runs-on: 'ubuntu-latest'
+    environment: prod # Gated by GitHub Environment Protection Rules (Required Reviewers)
+    defaults:
+      run:
+        working-directory: ./terraform/prod
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # Authenticate to Google Cloud (needed again in the new runner)
+    - name: Google Auth (WIF)
+      id: auth-wif
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+        service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+      continue-on-error: true
+
+    - name: Google Auth (Key JSON)
+      if: steps.auth-wif.outcome == 'failure' || steps.auth-wif.outcome == 'skipped'
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    # Install Terraform CLI
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    # Initialize Terraform
+    - name: Terraform Init
+      run: terraform init
+
+    # Download the plan artifact from the previous job
+    - name: Download Plan Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: tfplan
+        path: ./terraform/prod
+
+    # Apply the saved plan
     - name: Terraform Apply
-      if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
-      run: terraform apply -auto-approve -input=false
+      run: terraform apply -auto-approve -input=false tfplan
