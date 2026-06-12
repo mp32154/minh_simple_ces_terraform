@@ -2,9 +2,7 @@ name: 'Terraform Prod'
 
 on:
   push:
-    branches: [ "prod" ]
-  pull_request:
-    branches: [ "prod" ]
+    branches: [ "prod" ] # Trigger only on push/merge to prod branch
 
 permissions:
   contents: 'read'
@@ -69,7 +67,6 @@ jobs:
     needs: terraform-plan # Must wait for the plan job to succeed
     runs-on: 'ubuntu-latest'
     environment: prod # Gated by GitHub Environment Protection Rules (Required Reviewers)
-    if: github.event_name == 'push' # Only run on push/merge to prod branch
     defaults:
       run:
         working-directory: ./terraform/prod
